@@ -8,8 +8,10 @@ import {
   StyleSheet,
   Alert,
   Modal,
+  StatusBar,
+  Keyboard,
+  KeyboardAvoidingView,
 } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
 
 interface Expense {
   id: string;
@@ -26,6 +28,30 @@ export default function App() {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
   const [dateInput, setDateInput] = useState(formatDateInput(new Date()));
+  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [isEditingExpense, setIsEditingExpense] = useState(false);
+  const [editDescription, setEditDescription] = useState('');
+  const [editAmount, setEditAmount] = useState('');
+  const [showEditCalendar, setShowEditCalendar] = useState(false);
+
+  // Color scheme
+  const colors = isDarkMode ? {
+    bg: '#1C1C1E',
+    bgSecondary: '#2C2C2E',
+    text: '#FFFFFF',
+    textSecondary: '#A1A1A6',
+    border: '#3A3A3C',
+    input: '#3A3A3C',
+    inputText: '#FFFFFF',
+  } : {
+    bg: '#FFFFFF',
+    bgSecondary: '#F5F5F7',
+    text: '#000000',
+    textSecondary: '#86868B',
+    border: '#E5E5E7',
+    input: '#FFFFFF',
+    inputText: '#000000',
+  };
 
   function formatDateInput(date: Date): string {
     const d = new Date(date);
@@ -110,6 +136,57 @@ export default function App() {
     }
   };
 
+  const startEditingExpense = (expenseId: string) => {
+    const expense = expenses.find((e) => e.id === expenseId);
+    if (expense) {
+      setEditingExpenseId(expenseId);
+      setEditDescription(expense.description);
+      setEditAmount(expense.amount.toString());
+      setSelectedDate(expense.date);
+      setIsEditingExpense(true);
+    }
+  };
+
+  const saveEditedExpense = () => {
+    if (!editDescription.trim() || !editAmount.trim()) {
+      Alert.alert('Error', 'Please enter expense and amount');
+      return;
+    }
+
+    const numAmount = parseFloat(editAmount);
+    if (isNaN(numAmount) || numAmount <= 0) {
+      Alert.alert('Error', 'Please enter a valid amount');
+      return;
+    }
+
+    const updatedExpenses = expenses.map((expense) =>
+      expense.id === editingExpenseId
+        ? {
+            ...expense,
+            description: editDescription.trim(),
+            amount: numAmount,
+            date: selectedDate,
+          }
+        : expense
+    );
+
+    setExpenses(updatedExpenses);
+    setIsEditingExpense(false);
+    setShowDatePicker(false);
+    setShowEditCalendar(false);
+    setEditingExpenseId(null);
+    setEditDescription('');
+    setEditAmount('');
+  };
+
+  const cancelEdit = () => {
+    setIsEditingExpense(false);
+    setEditingExpenseId(null);
+    setEditDescription('');
+    setEditAmount('');
+    setShowEditCalendar(false);
+  };
+
   const handleDateSelect = (day: number) => {
     const newDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), day);
     setSelectedDate(newDate);
@@ -129,17 +206,17 @@ export default function App() {
     return new Date(date.getFullYear(), date.getMonth(), 1).getDay();
   };
 
-  const renderCalendar = () => {
+  const renderCalendar = (colorScheme: any, isCompact: boolean = false) => {
     const daysInMonth = getDaysInMonth(selectedDate);
     const firstDay = getFirstDayOfMonth(selectedDate);
     const days = [];
 
-    // Boş günler
+    // Empty days
     for (let i = 0; i < firstDay; i++) {
       days.push(<View key={`empty-${i}`} style={styles.calendarEmptyDay} />);
     }
 
-    // Günler
+    // Days
     for (let day = 1; day <= daysInMonth; day++) {
       const isSelected =
         day === selectedDate.getDate() &&
@@ -150,14 +227,15 @@ export default function App() {
         <TouchableOpacity
           key={day}
           style={[
-            styles.calendarDay,
+            isCompact ? styles.calendarDayCompact : styles.calendarDay,
             day === selectedDate.getDate() && styles.calendarDaySelected,
           ]}
           onPress={() => handleDateSelect(day)}
         >
           <Text
             style={[
-              styles.calendarDayText,
+              isCompact ? styles.calendarDayTextCompact : styles.calendarDayText,
+              { color: colorScheme.text },
               day === selectedDate.getDate() && styles.calendarDayTextSelected,
             ]}
           >
@@ -177,43 +255,65 @@ export default function App() {
   });
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light" />
+    <View style={[styles.container, { backgroundColor: colors.bg }]}>
+      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={colors.bg} />
 
       {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.title}>Expenses</Text>
-        <Text style={styles.totalText}>Total</Text>
-        <Text style={styles.totalAmount}>${totalExpense.toFixed(2)}</Text>
+      <View style={[styles.header, { backgroundColor: colors.bg }]}>
+        <View style={styles.headerTop}>
+          <Text style={[styles.title, { color: colors.text }]}>Expenses</Text>
+          <TouchableOpacity
+            style={[styles.themeToggle, { backgroundColor: colors.bgSecondary }]}
+            onPress={() => setIsDarkMode(!isDarkMode)}
+          >
+            <Text style={styles.themeToggleText}>{isDarkMode ? '☀️' : '🌙'}</Text>
+          </TouchableOpacity>
+        </View>
+        <Text style={[styles.totalText, { color: colors.textSecondary }]}>Total</Text>
+        <Text style={[styles.totalAmount, { color: '#34C759' }]}>${totalExpense.toFixed(2)}</Text>
       </View>
 
       {/* Input Section */}
-      <View style={styles.inputSection}>
+      <View style={[styles.inputSection, { backgroundColor: colors.bgSecondary }]}>
         <TextInput
-          style={styles.input}
+          style={[styles.input, { 
+            backgroundColor: colors.input, 
+            color: colors.inputText,
+            borderColor: colors.border
+          }]}
           placeholder="What did you buy?"
-          placeholderTextColor="#CCC"
+          placeholderTextColor={colors.textSecondary}
           value={description}
           onChangeText={setDescription}
+          onFocus={() => setShowDatePicker(false)}
         />
         <TextInput
-          style={styles.input}
+          style={[styles.input, { 
+            backgroundColor: colors.input, 
+            color: colors.inputText,
+            borderColor: colors.border
+          }]}
           placeholder="Amount"
-          placeholderTextColor="#CCC"
+          placeholderTextColor={colors.textSecondary}
           value={amount}
           onChangeText={setAmount}
           keyboardType="decimal-pad"
+          onFocus={() => setShowDatePicker(false)}
         />
 
         {/* Date Picker Button */}
         <TouchableOpacity
-          style={styles.datePickerButton}
+          style={[styles.datePickerButton, { 
+            backgroundColor: colors.bgSecondary,
+            borderColor: colors.border
+          }]}
           onPress={() => {
+            Keyboard.dismiss();
             setEditingExpenseId(null);
             setShowDatePicker(true);
           }}
         >
-          <Text style={styles.datePickerButtonText}>
+          <Text style={[styles.datePickerButtonText, { color: colors.text }]}>
             📅 {formatDateLong(selectedDate)}
           </Text>
         </TouchableOpacity>
@@ -225,21 +325,31 @@ export default function App() {
 
       {/* Date Picker Modal */}
       <Modal visible={showDatePicker} transparent animationType="slide">
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
+        <KeyboardAvoidingView 
+          behavior="padding"
+          style={[styles.modalContainer, { backgroundColor: isDarkMode ? 'rgba(0, 0, 0, 0.5)' : 'rgba(0, 0, 0, 0.3)' }]}
+        >
+          <View style={[styles.modalContent, { backgroundColor: colors.bg }]}>
             <View style={styles.modalHeader}>
               <TouchableOpacity onPress={() => setShowDatePicker(false)}>
                 <Text style={styles.modalCancel}>Cancel</Text>
               </TouchableOpacity>
-              <Text style={styles.modalTitle}>
-                {editingExpenseId ? 'Change Date' : 'Select Date'}
+              <Text style={[styles.modalTitle, { color: colors.text }]}>
+                {editingExpenseId && !isEditingExpense ? 'Change Date' : isEditingExpense ? 'Select Date' : 'Select Date'}
               </Text>
               <TouchableOpacity
                 onPress={() => {
-                  if (editingExpenseId) {
+                  if (isEditingExpense) {
+                    // Edit modal'ı açıksa, date picker'ı kapat ama edit modal'ı açık bırak
+                    setShowDatePicker(false);
+                  } else if (editingExpenseId) {
+                    // Kısa basıdan date picker açılmışsa
                     updateExpenseDate(editingExpenseId, dateInput);
+                    setShowDatePicker(false);
+                  } else {
+                    // Add expense'den açılmışsa
+                    setShowDatePicker(false);
                   }
-                  setShowDatePicker(false);
                 }}
               >
                 <Text style={styles.modalConfirm}>Done</Text>
@@ -255,7 +365,7 @@ export default function App() {
                 >
                   <Text style={styles.monthButtonText}>←</Text>
                 </TouchableOpacity>
-                <Text style={styles.monthTitle}>
+                <Text style={[styles.monthTitle, { color: colors.text }]}>
                   {selectedDate.toLocaleDateString('en-US', {
                     month: 'long',
                     year: 'numeric',
@@ -272,56 +382,164 @@ export default function App() {
               {/* Weekdays */}
               <View style={styles.weekdaysContainer}>
                 {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
-                  <Text key={day} style={styles.weekday}>
+                  <Text key={day} style={[styles.weekday, { color: colors.textSecondary }]}>
                     {day}
                   </Text>
                 ))}
               </View>
 
               {/* Days Grid */}
-              <View style={styles.daysGrid}>{renderCalendar()}</View>
+              <View style={styles.calendarWrapper}>
+                <ScrollView contentContainerStyle={styles.daysGrid}>{renderCalendar(colors)}</ScrollView>
+              </View>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Expenses List */}
-      <ScrollView style={styles.listContainer}>
+      <ScrollView style={[styles.listContainer, { backgroundColor: colors.bgSecondary }]}>
         {sortedExpenses.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>No expenses yet</Text>
+            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No expenses yet</Text>
           </View>
         ) : (
           sortedExpenses.map((expense) => (
-            <View key={expense.id} style={styles.expenseItem}>
-              <View style={styles.expenseInfo}>
-                <Text style={styles.expenseDescription}>
-                  {expense.description}
-                </Text>
-                <TouchableOpacity
-                  onPress={() => openDatePickerForExpense(expense.id)}
-                  style={styles.expenseDateButton}
-                >
-                  <Text style={styles.expenseDate}>
+            <TouchableOpacity
+              key={expense.id}
+              onPress={() => startEditingExpense(expense.id)}
+            >
+              <View style={[styles.expenseItem, { backgroundColor: colors.bg, borderBottomColor: colors.border }]}>
+                <View style={styles.expenseInfo}>
+                  <Text style={[styles.expenseDescription, { color: colors.text }]}>
+                    {expense.description}
+                  </Text>
+                  <Text style={[styles.expenseDate, { color: colors.textSecondary }]}>
                     {formatDateLong(expense.date)}
                   </Text>
-                </TouchableOpacity>
+                </View>
+                <View style={styles.expenseRight}>
+                  <Text style={styles.expenseAmount}>
+                    ${expense.amount.toFixed(2)}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => deleteExpense(expense.id)}
+                    style={styles.deleteButton}
+                  >
+                    <Text style={styles.deleteButtonText}>Delete</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
-              <View style={styles.expenseRight}>
-                <Text style={styles.expenseAmount}>
-                  ${expense.amount.toFixed(2)}
-                </Text>
-                <TouchableOpacity
-                  onPress={() => deleteExpense(expense.id)}
-                  style={styles.deleteButton}
-                >
-                  <Text style={styles.deleteButtonText}>Delete</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
+            </TouchableOpacity>
           ))
         )}
       </ScrollView>
+
+      {/* Edit Expense Modal */}
+      <Modal visible={isEditingExpense} transparent animationType="slide">
+        <KeyboardAvoidingView 
+          behavior="padding" 
+          style={[styles.modalContainer, { backgroundColor: isDarkMode ? 'rgba(0, 0, 0, 0.5)' : 'rgba(0, 0, 0, 0.3)' }]}
+        >
+          <View style={[styles.modalContent, { backgroundColor: colors.bg }]}>
+            <View style={styles.modalHeader}>
+              <TouchableOpacity onPress={() => cancelEdit()}>
+                <Text style={styles.modalCancel}>Cancel</Text>
+              </TouchableOpacity>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Edit Expense</Text>
+              <TouchableOpacity onPress={() => saveEditedExpense()}>
+                <Text style={styles.modalConfirm}>Save</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={[styles.calendarContainer, { paddingBottom: 20 }]}>
+              <TextInput
+                style={[styles.input, { 
+                  backgroundColor: colors.input, 
+                  color: colors.inputText,
+                  borderColor: colors.border,
+                  marginBottom: 12
+                }]}
+                placeholder="What did you buy?"
+                placeholderTextColor={colors.textSecondary}
+                value={editDescription}
+                onChangeText={setEditDescription}
+                onFocus={() => setShowEditCalendar(false)}
+              />
+
+              <TextInput
+                style={[styles.input, { 
+                  backgroundColor: colors.input, 
+                  color: colors.inputText,
+                  borderColor: colors.border,
+                  marginBottom: 12
+                }]}
+                placeholder="Amount"
+                placeholderTextColor={colors.textSecondary}
+                value={editAmount}
+                onChangeText={setEditAmount}
+                keyboardType="decimal-pad"
+                onFocus={() => setShowEditCalendar(false)}
+              />
+
+              <TouchableOpacity
+                style={[styles.datePickerButton, { 
+                  backgroundColor: colors.bgSecondary,
+                  borderColor: colors.border
+                }]}
+                onPress={() => {
+                  Keyboard.dismiss();
+                  setShowEditCalendar(!showEditCalendar);
+                }}
+              >
+                <Text style={[styles.datePickerButtonText, { color: colors.text }]}>
+                  📅 {formatDateLong(selectedDate)}
+                </Text>
+              </TouchableOpacity>
+
+              {/* Inline Calendar for Edit Modal */}
+              {showEditCalendar && (
+                <View style={[styles.calendarContainer, { marginTop: 12 }]}>
+                  <View style={styles.calendarHeader}>
+                    <TouchableOpacity
+                      onPress={() => handleMonthChange(-1)}
+                      style={styles.monthButton}
+                    >
+                      <Text style={styles.monthButtonText}>←</Text>
+                    </TouchableOpacity>
+                    <Text style={[styles.monthTitle, { color: colors.text }]}>
+                      {selectedDate.toLocaleDateString('en-US', {
+                        month: 'long',
+                        year: 'numeric',
+                      })}
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => handleMonthChange(1)}
+                      style={styles.monthButton}
+                    >
+                      <Text style={styles.monthButtonText}>→</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Weekdays */}
+                  <View style={styles.weekdaysContainer}>
+                    {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
+                      <Text key={day} style={[styles.weekday, { color: colors.textSecondary }]}>
+                        {day}
+                      </Text>
+                    ))}
+                  </View>
+
+                  {/* Days Grid */}
+                  <View style={styles.calendarWrapper}>
+                    <ScrollView contentContainerStyle={styles.daysGrid}>{renderCalendar(colors, false)}</ScrollView>
+                  </View>
+                </View>
+              )}
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -337,6 +555,22 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
     paddingHorizontal: 20,
     borderBottomWidth: 0,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  themeToggle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  themeToggleText: {
+    fontSize: 20,
   },
   title: {
     fontSize: 34,
@@ -374,7 +608,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    marginBottom: 10,
+    marginBottom: 8,
     fontSize: 16,
     color: '#000',
     fontWeight: '400',
@@ -421,7 +655,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 10,
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 0,
   },
   datePickerButtonText: {
     fontSize: 16,
@@ -506,16 +740,17 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    paddingBottom: 50,
-    paddingHorizontal: 20,
-    paddingTop: 20,
+    paddingBottom: 12,
+    maxHeight: '72%',
+    paddingHorizontal: 16,
+    paddingTop: 16,
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 16,
-    marginBottom: 20,
+    paddingVertical: 12,
+    marginBottom: 12,
   },
   modalTitle: {
     fontSize: 18,
@@ -559,19 +794,40 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   calendarContainer: {
-    padding: 20,
+    padding: 12,
+  },
+  calendarWrapper: {
+    maxHeight: 280,
+  },
+  calendarContainerCompact: {
+    padding: 4,
+    backgroundColor: 'transparent',
   },
   calendarHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 12,
+  },
+  calendarHeaderCompact: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
   },
   monthButton: {
     padding: 8,
   },
+  monthButtonCompact: {
+    padding: 4,
+  },
   monthButtonText: {
     fontSize: 20,
+    color: '#34C759',
+    fontWeight: '600',
+  },
+  monthButtonTextCompact: {
+    fontSize: 14,
     color: '#34C759',
     fontWeight: '600',
   },
@@ -580,13 +836,30 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#000',
   },
+  monthTitleCompact: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#000',
+  },
   weekdaysContainer: {
     flexDirection: 'row',
     justifyContent: 'space-around',
     marginBottom: 12,
   },
+  weekdaysContainerCompact: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: 3,
+  },
   weekday: {
     fontSize: 13,
+    fontWeight: '600',
+    color: '#86868B',
+    width: '14.28%',
+    textAlign: 'center',
+  },
+  weekdayCompact: {
+    fontSize: 9,
     fontWeight: '600',
     color: '#86868B',
     width: '14.28%',
@@ -598,11 +871,19 @@ const styles = StyleSheet.create({
   },
   calendarDay: {
     width: '14.28%',
-    aspectRatio: 1,
+    aspectRatio: 0.86,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 6,
     borderRadius: 8,
+  },
+  calendarDayCompact: {
+    width: '14.28%',
+    aspectRatio: 0.86,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 2,
+    borderRadius: 6,
   },
   calendarDaySelected: {
     backgroundColor: '#34C759',
@@ -612,12 +893,17 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: '#000',
   },
+  calendarDayTextCompact: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: '#000',
+  },
   calendarDayTextSelected: {
     color: '#FFFFFF',
     fontWeight: '600',
   },
   calendarEmptyDay: {
     width: '14.28%',
-    aspectRatio: 1,
+    aspectRatio: 0.86,
   },
 });
